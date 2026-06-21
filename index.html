@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal — Website leads, scored</title>
+<meta name="description" content="Find local businesses that need a website. Scrape Google Maps across the US and Canada, score every result, and work only the leads worth pitching.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF0EC;
+  --surface:#FFFFFF;
+  --surface-2:#F7F8F5;
+  --ink:#13161B;
+  --ink-2:#586173;
+  --ink-3:#8A93A2;
+  --line:#E0E3DD;
+  --line-2:#EBEDE8;
+  --cobalt:#1B45F5;
+  --cobalt-soft:#E7EBFF;
+  --a:#0B7A4B;       /* A lead - go */
+  --a-soft:#E0F2E9;
+  --b:#9A6A12;       /* B lead - warm */
+  --b-soft:#FCF1DC;
+  --c:#6B7280;       /* C - cold */
+  --c-soft:#EFF1F4;
+  --skip:#AEB4BD;
+  --radius:13px;
+  --d:"Space Grotesk",system-ui,sans-serif;
+  --b-font:"Inter",system-ui,sans-serif;
+  --m:"JetBrains Mono",ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+body{background:var(--bg);color:var(--ink);font-family:var(--b-font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+::selection{background:var(--cobalt);color:#fff}
+a{color:inherit}
+button,input,select{font-family:inherit}
+.wrap{max-width:1340px;margin:0 auto;padding:0 22px}
+
+/* topbar */
+.topbar{background:var(--ink);color:#fff;border-bottom:3px solid var(--cobalt)}
+.topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:62px;gap:18px}
+.mark{display:flex;align-items:center;gap:13px}
+.mark .glyph{position:relative;width:30px;height:30px;flex:none}
+.mark .glyph svg{width:30px;height:30px;display:block}
+.mark .name{font-family:var(--d);font-weight:700;font-size:19px;letter-spacing:.02em;line-height:1}
+.mark .name small{display:block;font-family:var(--m);font-weight:400;font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:#8E97A8;margin-top:3px}
+.topmeta{font-family:var(--m);font-size:11px;letter-spacing:.06em;color:#9aa3b4;text-align:right}
+.topmeta b{color:#fff;font-weight:500}
+
+/* run panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-top:22px;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 20px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.panel-head h2{font-family:var(--d);font-weight:600;font-size:15px;letter-spacing:.01em;display:flex;align-items:center;gap:9px}
+.panel-head h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--a);box-shadow:0 0 0 3px var(--a-soft)}
+.panel-head .hint{font-size:12px;color:var(--ink-3)}
+.panel-body{padding:20px;display:grid;grid-template-columns:1fr;gap:18px}
+@media(min-width:880px){.panel-body{grid-template-columns:1.1fr 1fr 1fr;align-items:start}}
+.fieldset{display:flex;flex-direction:column;gap:9px}
+.fieldset>label{font-family:var(--m);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.tinput{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);padding:11px 12px;font-size:13.5px;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+.tinput:focus{outline:none;border-color:var(--cobalt);box-shadow:0 0 0 3px var(--cobalt-soft);background:#fff}
+.tinput::placeholder{color:var(--ink-3)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line);background:var(--surface-2);border-radius:100px;padding:6px 13px;font-size:12.5px;color:var(--ink-2);cursor:pointer;transition:all .15s;user-select:none}
+.chip:hover{border-color:var(--ink-3)}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip.add{border-style:dashed;color:var(--ink-3)}
+.run-row{grid-column:1/-1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line-2);padding-top:18px;margin-top:2px}
+.slider-wrap{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--ink-2)}
+.slider-wrap input[type=range]{accent-color:var(--cobalt)}
+.slider-wrap b{font-family:var(--m);color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:9px;font-family:var(--d);font-weight:600;font-size:14px;border:0;border-radius:10px;padding:12px 22px;cursor:pointer;transition:all .18s;text-decoration:none}
+.btn.primary{background:var(--cobalt);color:#fff}
+.btn.primary:hover{background:#0d33d6}
+.btn.primary:disabled{opacity:.55;cursor:not-allowed}
+.btn.ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{border-color:var(--ink-3)}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+.spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.runnote{grid-column:1/-1;font-size:11.5px;color:var(--ink-3);line-height:1.6}
+.runnote code{font-family:var(--m);font-size:11px;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+
+/* stat strip */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:0;margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+@media(min-width:760px){.stats{grid-template-columns:repeat(5,1fr)}}
+.stat{padding:18px 20px;border-right:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
+.stat:nth-child(2n){border-right:0}
+@media(min-width:760px){.stat{border-bottom:0}.stat:nth-child(2n){border-right:1px solid var(--line-2)}.stat:last-child{border-right:0}}
+.stat .k{font-family:var(--m);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px}
+.stat .v{font-family:var(--d);font-weight:600;font-size:30px;letter-spacing:-.01em;line-height:1}
+.stat .v small{font-size:14px;color:var(--ink-3);font-weight:500}
+.stat.hot .v{color:var(--a)}
+
+/* filters */
+.filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 14px}
+.gpills{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:3px}
+.gpills button{border:0;background:transparent;border-radius:8px;padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;font-family:var(--d);transition:all .15s}
+.gpills button.on{background:var(--ink);color:#fff}
+.fsel{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 12px;font-size:12.5px;color:var(--ink);cursor:pointer}
+.fsel:focus{outline:none;border-color:var(--cobalt)}
+.search{flex:1;min-width:170px;position:relative}
+.search input{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:9px 12px 9px 32px;font-size:13px}
+.search input:focus{outline:none;border-color:var(--cobalt);box-shadow:0 0 0 3px var(--cobalt-soft)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;stroke:var(--ink-3);fill:none;stroke-width:2}
+
+/* table */
+.tablecard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.thead,.trow{display:grid;grid-template-columns:54px 2.3fr 1.1fr 1.2fr 2.1fr .8fr .7fr 64px;gap:14px;align-items:center;padding:0 20px}
+.thead{height:42px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:var(--m);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.thead .srt{cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none}
+.thead .srt:hover{color:var(--ink)}
+.trow{min-height:62px;border-bottom:1px solid var(--line-2);cursor:pointer;transition:background .12s}
+.trow:hover{background:var(--surface-2)}
+.trow:last-child{border-bottom:0}
+.grade{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--d);font-weight:700;font-size:14px}
+.grade.A{background:var(--a-soft);color:var(--a)}
+.grade.B{background:var(--b-soft);color:var(--b)}
+.grade.C{background:var(--c-soft);color:var(--c)}
+.grade.Skip{background:transparent;color:var(--skip);border:1px dashed var(--line)}
+.biz .bn{font-weight:600;font-size:14px;color:var(--ink);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cat{font-size:12.5px;color:var(--ink-2)}
+.loc{font-size:12.5px;color:var(--ink-2)}
+.loc .flag{font-family:var(--m);font-size:10px;color:var(--ink-3);letter-spacing:.08em}
+.why{font-size:12px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:5px}
+.why .tag{background:var(--surface-2);border:1px solid var(--line-2);border-radius:5px;padding:2px 7px;white-space:nowrap}
+.why .tag.no{color:var(--a);border-color:var(--a-soft);background:var(--a-soft)}
+.why .tag.soc{color:var(--b);border-color:var(--b-soft);background:var(--b-soft)}
+.num{font-family:var(--m);font-size:13px;color:var(--ink)}
+.num.mut{color:var(--ink-3)}
+.webcell{font-family:var(--m);font-size:11px}
+.webcell .none{color:var(--a);font-weight:700}
+.webcell .soc{color:var(--b);font-weight:700}
+.webcell .real{color:var(--ink-3)}
+.webcell .chain{color:var(--skip)}
+.openbtn{justify-self:end;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;transition:all .15s}
+.trow:hover .openbtn{border-color:var(--cobalt);background:var(--cobalt);color:#fff}
+.openbtn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.empty{padding:60px 20px;text-align:center;color:var(--ink-3)}
+.empty h3{font-family:var(--d);font-weight:600;color:var(--ink-2);margin-bottom:6px}
+
+/* mobile cards */
+.mcard{display:none}
+@media(max-width:820px){
+  .thead{display:none}
+  .trow{display:none}
+  .mcard{display:block;border-bottom:1px solid var(--line-2);padding:16px 18px;cursor:pointer}
+  .mcard:hover{background:var(--surface-2)}
+  .mcard .top{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+  .mcard .bn{font-weight:600;flex:1}
+  .mcard .meta{font-size:12px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:5px 12px}
+}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(19,22,27,.42);opacity:0;pointer-events:none;transition:opacity .25s;z-index:40}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(440px,92vw);background:var(--surface);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);z-index:41;overflow-y:auto}
+.drawer.open{transform:none}
+.dr-head{padding:24px 24px 20px;border-bottom:1px solid var(--line-2);position:sticky;top:0;background:var(--surface)}
+.dr-grade{display:inline-flex;align-items:center;gap:8px;font-family:var(--m);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:14px}
+.dr-grade .g{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:var(--d);font-weight:700;font-size:12px}
+.dr-head h3{font-family:var(--d);font-weight:600;font-size:21px;line-height:1.2;letter-spacing:-.01em}
+.dr-head .sub{font-size:13px;color:var(--ink-2);margin-top:6px}
+.dr-close{position:absolute;top:20px;right:20px;width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:18px;line-height:1;color:var(--ink-2);cursor:pointer}
+.dr-close:hover{border-color:var(--ink-3)}
+.dr-body{padding:22px 24px 40px}
+.dr-sec{margin-bottom:24px}
+.dr-sec h4{font-family:var(--m);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:11px}
+.signal-rows{display:flex;flex-direction:column;gap:9px}
+.srow{display:flex;align-items:center;gap:11px;font-size:13px}
+.srow .ic{width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center}
+.srow .ic svg{width:15px;height:15px;stroke:var(--ink-3);fill:none;stroke-width:1.8}
+.srow .ic.good svg{stroke:var(--a)}
+.srow b{font-weight:600}
+.contact-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:13px}
+.contact-row:last-child{border-bottom:0}
+.contact-row .lbl{color:var(--ink-2)}
+.contact-row a{color:var(--cobalt);text-decoration:none;font-weight:500}
+.contact-row a:hover{text-decoration:underline}
+.pitch{background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:16px;font-size:13px;line-height:1.6;color:var(--ink-2);white-space:pre-wrap}
+.dr-actions{display:flex;gap:10px;margin-top:8px}
+.dr-actions .btn{flex:1;justify-content:center;font-size:13px;padding:11px}
+.contacted-toggle{display:flex;align-items:center;gap:10px;margin-top:16px;font-size:13px;color:var(--ink-2);cursor:pointer;user-select:none}
+.contacted-toggle .box{width:20px;height:20px;border:1.6px solid var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.contacted-toggle.on .box{background:var(--a);border-color:var(--a)}
+.contacted-toggle .box svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0}
+.contacted-toggle.on .box svg{opacity:1}
+.trow.done,.mcard.done{opacity:.5}
+
+/* toast */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:all .3s;z-index:50}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+footer{padding:40px 0 60px;text-align:center;color:var(--ink-3);font-size:12px}
+footer code{font-family:var(--m);font-size:11px}
+</style>
+</head>
+<body>
+<!-- topbar -->
+<div class="topbar">
+  <div class="wrap">
+    <div class="mark">
+      <span class="glyph">
+        <svg viewBox="0 0 30 30" aria-hidden="true">
+          <circle cx="15" cy="15" r="3.4" fill="#1B45F5"/>
+          <circle cx="15" cy="15" r="8" fill="none" stroke="#fff" stroke-width="1.6" opacity=".9"/>
+          <circle cx="15" cy="15" r="13" fill="none" stroke="#fff" stroke-width="1.3" opacity=".4"/>
+          <path d="M15 2 V6 M15 24 V28 M2 15 H6 M24 15 H28" stroke="#fff" stroke-width="1.4"/>
+        </svg>
+      </span>
+      <span class="name">Signal<small>Website leads, scored</small></span>
+    </div>
+    <div class="topmeta" id="topmeta">Loading run…</div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- run panel -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2><span class="dot"></span> New scan</h2>
+      <span class="hint">Scrape Google Maps across the US &amp; Canada, score every result on the spot.</span>
+    </div>
+    <div class="panel-body">
+      <div class="fieldset">
+        <label for="token">Apify API token</label>
+        <input class="tinput" type="password" id="token" placeholder="apify_api_••••••  (stored on this device only)" autocomplete="off">
+      </div>
+      <div class="fieldset">
+        <label>Categories</label>
+        <div class="chips" id="catChips"></div>
+      </div>
+      <div class="fieldset">
+        <label>Locations (US &amp; Canada)</label>
+        <div class="chips" id="cityChips"></div>
+      </div>
+
+      <div class="run-row">
+        <div class="slider-wrap">
+          <span>Results per category</span>
+          <input type="range" id="perCat" min="3" max="20" value="8">
+          <b id="perCatVal">8</b>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn ghost" id="exportBtn">Export CSV</button>
+          <button class="btn primary" id="runBtn">
+            <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            Run scan
+          </button>
+        </div>
+      </div>
+      <p class="runnote">The scan calls the Apify actor <code>compass/crawler-google-places</code> directly with your token, then scores results here in your browser. Today's view is preloaded with a real scan of Austin, Denver and Toronto so you can work leads right away. Your token never leaves this device.</p>
+    </div>
+  </section>
+
+  <!-- stats -->
+  <div class="stats" id="stats"></div>
+
+  <!-- filters -->
+  <div class="filters">
+    <div class="gpills" id="gpills">
+      <button data-g="all" class="on">All</button>
+      <button data-g="A">A</button>
+      <button data-g="B">B</button>
+      <button data-g="C">C</button>
+    </div>
+    <select class="fsel" id="countryF"><option value="all">All countries</option><option value="US">United States</option><option value="CA">Canada</option></select>
+    <select class="fsel" id="catF"><option value="all">All categories</option></select>
+    <select class="fsel" id="sortF">
+      <option value="score">Sort: Lead score</option>
+      <option value="reviews">Sort: Reviews</option>
+      <option value="rating">Sort: Rating</option>
+    </select>
+    <div class="search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="searchF" placeholder="Search business or city">
+    </div>
+  </div>
+
+  <!-- table -->
+  <div class="tablecard">
+    <div class="thead">
+      <div>Grade</div>
+      <div>Business</div>
+      <div>Category</div>
+      <div>Location</div>
+      <div>Why it's a lead</div>
+      <div class="srt" data-sort="reviews">Reviews</div>
+      <div class="srt" data-sort="rating">Rating</div>
+      <div></div>
+    </div>
+    <div id="rows"></div>
+  </div>
+
+  <footer>
+    Signal · lead scoring runs entirely in your browser · data from Google Maps via Apify<br>
+    <code>A = pitch today · B = worth a look · C = has a site, low priority · Skip = chain</code>
+  </footer>
+</div>
+
+<!-- drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Lead detail"></aside>
+<div class="toast" id="toast"></div>
+<script>
+/* ============ SEED: real scan, Austin + Denver + Toronto, today ============ */
+/* [name, category, website, phone, rating, reviews, claimUnclaimed(0/1), images, city, country] */
+const SEED = [
+["Hecho Amano","Coffee shop","","",4.9,188,0,125,"Austin","US"],
+["Zookeeper Exotics","Pet store","https://facebook.com/Zookeeper-162861187065325/","(512) 453-8800",4.6,1812,0,1153,"Austin","US"],
+["Gallery of Pets","Pet store","http://www.galleryofpets.com/","",4.4,969,0,571,"Austin","US"],
+["Talisman Coffee Co.","Coffee shop","https://www.talismancoffeeco.com/","",4.8,200,0,96,"Austin","US"],
+["Terrible Love","Coffee shop","http://terriblelovecoffee.com/","",4.9,403,0,314,"Austin","US"],
+["Love Lamp Matcha","Coffee shop","http://lovelampmatcha.com/","(512) 766-0490",4.9,97,0,76,"Austin","US"],
+["Flightpath Coffeehouse","Cafe","http://flightpathcoffeehouse.com/","(512) 458-4472",4.5,839,0,320,"Austin","US"],
+["Bullseye Bakery","Bakery","https://bullseyebakery.com/","(512) 577-1544",4.8,81,0,50,"Austin","US"],
+["River City Aquatics","Tropical fish store","https://rivercitytropicalfish.com/","(512) 219-7200",4.7,521,0,299,"Austin","US"],
+["Healthy Pet - Lakeline Austin","Pet supply store","http://healthypetaustin.com/","(512) 215-2368",4.8,305,0,354,"Austin","US"],
+["pupper crust","Pet store","https://puppercrust.com/","",null,null,0,3,"Austin","US"],
+["Winsomepoodle","Pet supply store","https://winsomepoodle.com/","(945) 402-2556",null,null,1,1,"Austin","US"],
+["Workshop No5","Architect","http://www.workshopno5.com/","(512) 710-9705",5,14,0,11,"Austin","US"],
+["Winn Wittman Architecture","Architect","http://www.winnwittman.com/","(512) 270-6903",5,20,0,44,"Austin","US"],
+["Negrete & Kolar Architects LLP","Architecture firm","http://www.nekoarch.com/","(512) 474-6526",3.7,3,1,2,"Austin","US"],
+["A Parallel Architecture","Architect","https://www.aparallel.com/","(512) 464-1199",5,13,0,4,"Austin","US"],
+["Hatch Ulland Owen Architects","Architect","http://huoarchitects.com/","(512) 474-8548",4.2,5,0,6,"Austin","US"],
+["Specht Novak","Architect","http://www.spechtnovak.com/","(512) 382-7938",4.9,16,0,12,"Austin","US"],
+["Stanley Studio - Stanley Architects","Architecture firm","http://www.larsstanley.com/","(512) 445-0444",5,4,0,8,"Austin","US"],
+["Starbucks","Coffee shop","https://www.starbucks.com/","(512) 566-0742",5,23,1,14,"Austin","US"],
+["Summer Moon Coffee","Coffee shop","https://locations.summermooncoffee.com/locations/burnet-rd-austin/","(737) 300-1265",4.6,2022,0,841,"Austin","US"],
+["Pet Supplies Plus Austin - North Mopac","Pet store","https://www.petsuppliesplus.com/store/tx/austin/4709-austin/4709","(512) 358-6327",4.5,581,0,239,"Austin","US"],
+["Barkin' Creek Dog Kitchen & Bath","Pet groomer","https://barkincreek.com/locations/the-domain-northside/","(512) 534-3200",4.7,395,0,242,"Austin","US"],
+["Waterloo Outdoor Design Build","Landscape architect","https://waterlooaustin.com/","(512) 731-1529",4.9,36,0,163,"Austin","US"],
+["Nowhere Coffee","Coffee shop","http://nowherecoffee.co/","",4.9,171,0,108,"Denver","US"],
+["Procession Coffee","Coffee shop","http://www.processioncoffee.com/","(720) 593-0294",4.9,351,0,105,"Denver","US"],
+["QUINCE COFFEE HOUSE","Coffee shop","http://quincecoffee.com/","(720) 408-7247",4.7,901,0,506,"Denver","US"],
+["Kochi Cafe","Coffee shop","http://kochicafe.com/","(303) 321-0445",4.6,657,0,694,"Denver","US"],
+["Whittier Cafe","Coffee shop","http://www.whittiercafe.com/","(720) 550-7440",4.8,1008,0,480,"Denver","US"],
+["Pablo's Coffee - 6th Avenue","Coffee shop","http://www.pabloscoffee.com/","(303) 744-3323",4.6,1004,0,369,"Denver","US"],
+["A Pet's Paradise","Pet supply store","https://www.apetsparadisedenver.com/","(303) 863-8151",4.9,214,0,68,"Denver","US"],
+["Two Pals & A Pup","Pet supply store","http://www.twopalsandapup.com/","(303) 350-4498",4.9,182,0,39,"Denver","US"],
+["Sherlock Hound Denver","Pet supply store","","(303) 433-3234",4.9,156,0,54,"Denver","US"],
+["Chuck & Don's Pet Food & Supplies","Pet store","https://stores.chuckanddons.com/co-denver-201/","(720) 496-2668",4.8,473,0,48,"Denver","US"],
+["Pet Supplies Plus Denver","Pet supply store","https://www.petsuppliesplus.com/store/co/denver/4328-denver/4328","(303) 534-0565",4.6,220,0,42,"Denver","US"],
+["Chewy's Bonetique","Pet supply store","http://www.chewysbonetique.com/","(303) 344-2663",4.6,444,0,71,"Denver","US"],
+["The Cake Bar","Bakery","https://thecakebardenver.com/","(303) 568-9752",4.9,696,0,467,"Denver","US"],
+["LoDough Bakery","Bakery","http://www.lodoughbakery.com/","",4.9,296,0,236,"Denver","US"],
+["Sweets & Sourdough","Bakery","https://www.instagram.com/sweetsandsourdough/","(303) 320-5642",4.8,75,0,27,"Denver","US"],
+["Scratch Family Bakery + Local Market","Bakery","https://www.scratchbakeryandmarket.com/","(303) 927-6681",4.8,48,0,35,"Denver","US"],
+["Elemental Bakery & Coffeehouse","Bakery","https://elementalbakeryandcoffee.com/","(720) 838-1501",4.8,172,0,133,"Denver","US"],
+["Moore. Cafe and Bakery","Bakery","http://www.moorebreadbakery.com/","(303) 578-9076",4.7,349,0,249,"Denver","US"],
+["A21 Architecture + Design","Architecture firm","http://www.a21.design/","(720) 661-2621",5,2,0,2,"Denver","US"],
+["Shape Architecture Studio","Architecture firm","http://shapearchitect.com/","(303) 209-8473",5,21,0,59,"Denver","US"],
+["KGA Studio Architects","Architect","https://kgarch.com/","(303) 442-5882",4.9,7,0,21,"Denver","US"],
+["Iron Horse Architects, Inc.","Architecture firm","http://www.iron-horse-architects.com/","(720) 855-7572",5,3,0,15,"Denver","US"],
+["Ford Architects","Architecture firm","http://www.fordarch.com/","(303) 383-1111",5,1,0,47,"Denver","US"],
+["MHK Architecture","Architecture firm","https://mhkarchitecture.com/","(970) 366-1417",5,2,0,7,"Denver","US"],
+["RESTOR Medical Spa | Central Park","Medical spa","https://www.restormedicalspa.com/","(720) 388-6244",4.9,460,0,57,"Denver","US"],
+["Cherry Creek Med Spa","Medical spa","https://www.thecherrycreekmedspa.com/","(720) 422-6636",5,79,0,13,"Denver","US"],
+["Let's Face It Med Spa","Medical spa","https://www.letsfaceitmedspa.com/","(720) 624-6782",5,137,0,4,"Denver","US"],
+["Look Lab Med Spa","Medical spa","https://looklab.com/","(720) 995-5665",5,1159,0,105,"Denver","US"],
+["Aspire Medical Spa - RiNo","Medical spa","https://denvermedispa.com/","(720) 670-2983",4.8,26,0,15,"Denver","US"],
+["Allure Med Spa","Medical spa","https://allureskincareandlash.com/","(720) 363-8623",4.7,142,0,33,"Denver","US"],
+["AsharioPets - Organic Pet Store","Pet supply store","https://ashariopets.ca/","+1 647-564-4433",5,465,0,1929,"Toronto","CA"],
+["Pet Valu (Yonge)","Pet supply store","https://store.petvalu.ca/location/2187/","+1 416-665-4254",4.2,248,0,62,"Toronto","CA"],
+["Pet Valu (Bayview)","Pet supply store","https://store.petvalu.ca/location/2396/","+1 416-222-8882",4.6,452,0,211,"Toronto","CA"],
+["Haven Brews","Coffee shop","https://www.havenbrews.ca/","+1 416-250-1888",4.8,372,0,665,"Toronto","CA"],
+["Space Coffee","Coffee shop","https://www.spacecoffee.ca/","",4.8,213,0,431,"Toronto","CA"],
+["LOVA Cafe and Bakery","Cafe","https://www.lovacafe.ca/","+1 437-228-7119",5,80,0,107,"Toronto","CA"],
+["Blaze Coffee Roasters","Coffee shop","http://blazecoffeeco.com/","+1 416-848-7545",4.9,188,0,41,"Toronto","CA"],
+["Coffee Lunar","Coffee shop","https://www.coffeelunar.com/","",4.3,335,0,481,"Toronto","CA"],
+["Cozy Cafe","Coffee shop","http://cozycafe.ca/","+1 647-615-6464",4.7,260,0,161,"Toronto","CA"],
+["J & J Pet Club","Pet store","http://www.jjpetclub.com/","+1 289-597-1311",4.8,159,0,64,"Thornhill","CA"],
+["Pawscape Pet Supply","Pet store","","(800) 980-5174",5,3,0,19,"Markham","CA"],
+["PetSmart (North York)","Pet supply store","https://www.petsmart.ca/stores/ca/on/north-york-store2712.html","+1 416-223-9103",4.3,1386,0,431,"Toronto","CA"],
+["Brick & Butter Bakehouse","Bakery","","+1 416-223-8916",4.5,307,0,674,"Toronto","CA"],
+["Qarteli Bakery","Bakery","https://qartelibakery.com/","+1 647-745-5846",4.8,227,0,111,"Concord","CA"],
+["Alma bakery","Bakery","http://almabakery.ca/","+1 647-509-6767",4.9,33,0,43,"Toronto","CA"],
+["On Bake","Bakery","","+1 416-218-9777",4.8,53,0,51,"Toronto","CA"],
+["Komugi Bakery","Bakery","","+1 416-490-1142",4.8,100,0,82,"Toronto","CA"],
+["Kourosh Bakery and sandwiches","Bakery","http://kouroshfoods.ca/","+1 416-223-9999",4.7,934,0,445,"Toronto","CA"],
+["Q Architects","Architecture firm","https://www.qarchitects.ca/","+1 647-470-4041",5,31,0,17,"Toronto","CA"],
+["SABAT ARCHITECT INC.","Architecture firm","http://www.sabatgroup.ca/","+1 416-400-2025",4,4,0,5,"Vaughan","CA"],
+["C Y Lee Architects Inc","Architect","https://www.cyleearchitect.com/","+1 416-223-6400",4.8,6,0,2,"Toronto","CA"],
+["Dadras Architects Inc","Architect","https://dadras.ca/","+1 647-407-3003",4,5,0,31,"Toronto","CA"],
+["Valente CAD Studio","Architecture firm","http://www.valentecadstudio.com/","+1 416-294-3704",5,3,0,41,"Toronto","CA"],
+["Trapezoid Architects Inc.","Architecture firm","https://www.trapezoidarchitects.com/","+1 514-839-3647",5,5,0,8,"Toronto","CA"],
+["Rejuuv Medi Spa","Medical spa","https://rejuuvmedispa.com/","+1 905-695-6956",4.9,202,0,34,"Toronto","CA"],
+["Hermosa Med SPA","Medical spa","https://hermosaspa.com/","+1 437-734-5566",4.9,167,0,45,"Toronto","CA"],
+["Marvel Medica","Medical spa","http://marvelmedica.com/","+1 437-494-0909",4.4,40,0,15,"Toronto","CA"],
+["Philosophy of Beauty","Medical spa","https://philosophyofbeauty.ca/","+1 416-639-9728",4.8,402,0,631,"Toronto","CA"],
+["La Vitalite Med Spa","Medical spa","https://www.lvmedspa.ca/","+1 647-581-2888",4.8,454,0,214,"Toronto","CA"],
+["NU Med Clinic and MediSpa","Medical spa","http://www.numedclinic.ca/","+1 416-724-1460",4.4,105,0,27,"Toronto","CA"]
+];
+
+/* ============ scoring engine ============ */
+const CHAIN_NAMES=["starbucks","petsmart","pet supplies plus","pet valu","chuck & don","dunkin","subway","mcdonald"];
+function classifyWeb(url,name){
+  if(!url||!url.trim())return"none";
+  const u=url.toLowerCase();
+  if(/facebook\.|instagram\.|linktr\.|linktree|tiktok\.|fb\.com/.test(u))return"social";
+  if(/wixsite\.|business\.site|godaddysites|weebly\.|mystrikingly|square\.site|wordpress\.com|blogspot|\.wix\.com/.test(u))return"builder";
+  if(/\/store\/|\/stores\/|\/locations?\/|stores\.|locations\.|store\.petvalu|petsuppliesplus|petsmart\.|starbucks\.com|summermoon/.test(u))return"chain";
+  const n=(name||"").toLowerCase();
+  if(CHAIN_NAMES.some(c=>n.includes(c)))return"chain";
+  return"real";
+}
+function scoreLead(d){
+  const [name,cat,web,phone,rating,reviews,unclaimed,images]=d;
+  const wc=classifyWeb(web,name);
+  let score=0; const sig=[];
+  if(wc==="chain"){return{grade:"Skip",score:0,wc,why:[{t:"Chain / franchise",k:""}],sig:["National brand with an in-house web team"]};}
+  if(wc==="none"){score+=50;sig.push("No website at all");}
+  else if(wc==="social"){score+=45;sig.push("Running on a social page only");}
+  else if(wc==="builder"){score+=30;sig.push("DIY website builder");}
+  else {score+=5;}
+  if(unclaimed){score+=15;sig.push("Google listing still unclaimed");}
+  const r=reviews==null?0:reviews;
+  if(reviews==null)score+=4;
+  else if(r<5)score+=6;
+  else if(r<=49)score+=18;
+  else if(r<=300)score+=16;
+  else if(r<=1200)score+=10;
+  else score+=4;
+  if(rating==null)score+=4;
+  else if(rating>=4.5)score+=10;
+  else if(rating>=4.0)score+=6;
+  else score+=3;
+  if(images!=null&&images<5)score+=5;
+  if(phone&&phone.trim())score+=3;
+  if(reviews!=null&&reviews>=50&&(wc==="none"||wc==="social"))sig.push("Established business, real revenue, no real site");
+  let grade= score>=66?"A":score>=48?"B":"C";
+  // why tags
+  const why=[];
+  if(wc==="none")why.push({t:"No website",k:"no"});
+  else if(wc==="social")why.push({t:"Social only",k:"soc"});
+  else if(wc==="builder")why.push({t:"Builder site",k:""});
+  if(unclaimed)why.push({t:"Unclaimed",k:""});
+  if(reviews!=null)why.push({t:reviews+" reviews",k:""});
+  if(rating!=null)why.push({t:rating+"\u2605",k:""});
+  return{grade,score,wc,why,sig};
+}
+
+/* ============ state ============ */
+let LEADS=[];
+let filter={grade:"all",country:"all",cat:"all",q:"",sort:"score"};
+let contacted={};
+try{contacted=JSON.parse(localStorage.getItem("signal_contacted")||"{}");}catch(e){contacted={};}
+
+function rowKey(d){return (d[0]+"|"+d[8]).toLowerCase();}
+function buildLeads(raw){
+  return raw.map(d=>{const s=scoreLead(d);return{
+    name:d[0],cat:d[1],web:d[2],phone:d[3],rating:d[4],reviews:d[5],unclaimed:d[6],images:d[7],city:d[8],country:d[9],
+    ...s,key:rowKey(d),done:!!contacted[rowKey(d)]
+  };});
+}
+
+/* ============ render ============ */
+const $=id=>document.getElementById(id);
+function fmtNum(n){return n==null?"—":n.toLocaleString();}
+function gradeColor(g){return g==="A"?"var(--a)":g==="B"?"var(--b)":g==="C"?"var(--c)":"var(--skip)";}
+
+function renderStats(){
+  const a=LEADS.filter(l=>l.grade==="A").length;
+  const b=LEADS.filter(l=>l.grade==="B").length;
+  const total=LEADS.length;
+  const actionable=total?Math.round((a+b)/total*100):0;
+  const pipeline=(a*3500+b*1500);
+  $("stats").innerHTML=`
+    <div class="stat"><div class="k">Scanned</div><div class="v">${total}</div></div>
+    <div class="stat hot"><div class="k">A · pitch today</div><div class="v">${a}</div></div>
+    <div class="stat"><div class="k">B · worth a look</div><div class="v">${b}</div></div>
+    <div class="stat"><div class="k">Actionable</div><div class="v">${actionable}<small>%</small></div></div>
+    <div class="stat"><div class="k">Est. pipeline</div><div class="v">$${(pipeline/1000).toFixed(0)}<small>k</small></div></div>`;
+}
+function renderCatFilter(){
+  const cats=[...new Set(LEADS.map(l=>l.cat))].sort();
+  const sel=$("catF");const cur=sel.value;
+  sel.innerHTML='<option value="all">All categories</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join("");
+  sel.value=cur&&[...sel.options].some(o=>o.value===cur)?cur:"all";
+}
+function passFilter(l){
+  if(filter.grade!=="all"&&l.grade!==filter.grade)return false;
+  if(filter.country!=="all"&&l.country!==filter.country)return false;
+  if(filter.cat!=="all"&&l.cat!==filter.cat)return false;
+  if(filter.q){const q=filter.q.toLowerCase();if(!(l.name.toLowerCase().includes(q)||l.city.toLowerCase().includes(q)))return false;}
+  return true;
+}
+const gradeOrder={A:0,B:1,C:2,Skip:3};
+function sortLeads(arr){
+  return arr.sort((x,y)=>{
+    if(filter.sort==="reviews")return (y.reviews||0)-(x.reviews||0);
+    if(filter.sort==="rating")return (y.rating||0)-(x.rating||0);
+    if(gradeOrder[x.grade]!==gradeOrder[y.grade])return gradeOrder[x.grade]-gradeOrder[y.grade];
+    return y.score-x.score;
+  });
+}
+function whyHTML(why){return why.map(w=>`<span class="tag ${w.k}">${w.t}</span>`).join("");}
+function webLabel(wc){
+  return wc==="none"?'<span class="none">NONE</span>':wc==="social"?'<span class="soc">SOCIAL</span>':
+    wc==="builder"?'<span class="soc">BUILDER</span>':wc==="chain"?'<span class="chain">CHAIN</span>':'<span class="real">has site</span>';
+}
+function renderRows(){
+  const list=sortLeads(LEADS.filter(passFilter));
+  const c=$("rows");
+  if(!list.length){c.innerHTML='<div class="empty"><h3>No leads match</h3>Loosen the filters or run a new scan.</div>';return;}
+  c.innerHTML=list.map((l,i)=>{
+    const idx=LEADS.indexOf(l);
+    return `<div class="trow ${l.done?'done':''}" data-i="${idx}">
+      <div><span class="grade ${l.grade}">${l.grade==="Skip"?"–":l.grade}</span></div>
+      <div class="biz"><div class="bn">${l.name}</div></div>
+      <div class="cat">${l.cat}</div>
+      <div class="loc">${l.city} <span class="flag">${l.country}</span></div>
+      <div class="why">${whyHTML(l.why)}</div>
+      <div class="num ${l.reviews==null?'mut':''}">${fmtNum(l.reviews)}</div>
+      <div class="num ${l.rating==null?'mut':''}">${l.rating==null?"—":l.rating}</div>
+      <div><span class="openbtn"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></span></div>
+    </div>
+    <div class="mcard ${l.done?'done':''}" data-i="${idx}">
+      <div class="top"><span class="grade ${l.grade}">${l.grade==="Skip"?"–":l.grade}</span><span class="bn">${l.name}</span></div>
+      <div class="meta"><span>${l.cat}</span><span>${l.city} ${l.country}</span><span>${fmtNum(l.reviews)} rev</span><span>${l.rating==null?"—":l.rating+"\u2605"}</span></div>
+      <div class="why" style="margin-top:8px">${whyHTML(l.why)}</div>
+    </div>`;
+  }).join("");
+  c.querySelectorAll("[data-i]").forEach(el=>el.addEventListener("click",()=>openDrawer(+el.dataset.i)));
+}
+function renderAll(){renderStats();renderCatFilter();renderRows();
+  $("topmeta").innerHTML=`Last scan · <b>${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}</b> · <b>${LEADS.length}</b> businesses · <b>${LEADS.filter(l=>l.grade==='A').length}</b> A-leads`;
+}
+
+/* ============ drawer ============ */
+function draftPitch(l){
+  const hook = l.wc==="none"
+    ? `I was looking up ${l.cat.toLowerCase()}s in ${l.city} and noticed ${l.name} doesn't have a website yet, despite ${l.reviews?l.reviews+" reviews and a "+l.rating+"-star reputation":"a great reputation"}.`
+    : l.wc==="social"
+    ? `I came across ${l.name} in ${l.city}. You've built a real following${l.reviews?" ("+l.reviews+" reviews)":""}, but everything points to a social page rather than a site you own.`
+    : `I came across ${l.name} in ${l.city} and put together a fresh concept for your site.`;
+  return `${hook}\n\nI build fast, custom sites for local businesses and I've already mocked up a homepage for you. No template, no monthly platform fee, you own it outright.\n\nWant me to send the live preview link?`;
+}
+function openDrawer(i){
+  const l=LEADS[i];const d=$("drawer");
+  const mapsQ=encodeURIComponent(l.name+" "+l.city);
+  d.innerHTML=`
+    <div class="dr-head">
+      <button class="dr-close" id="drClose">&times;</button>
+      <div class="dr-grade"><span class="g grade ${l.grade}">${l.grade==="Skip"?"–":l.grade}</span> ${l.grade==="A"?"Pitch today":l.grade==="B"?"Worth a look":l.grade==="C"?"Has a site · low priority":"Chain · skip"} · score ${l.score}</div>
+      <h3>${l.name}</h3>
+      <div class="sub">${l.cat} · ${l.city}, ${l.country}</div>
+    </div>
+    <div class="dr-body">
+      <div class="dr-sec">
+        <h4>Why the score</h4>
+        <div class="signal-rows">
+          ${l.sig.map(s=>`<div class="srow"><span class="ic good"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span><span>${s}</span></div>`).join("")}
+          <div class="srow"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span><span>${l.reviews==null?"No reviews yet":l.reviews+" reviews"}${l.rating!=null?", "+l.rating+"\u2605":""}</span></div>
+        </div>
+      </div>
+      <div class="dr-sec">
+        <h4>Contact</h4>
+        ${l.phone?`<div class="contact-row"><span class="lbl">Phone</span><a href="tel:${l.phone.replace(/[^0-9+]/g,'')}">${l.phone}</a></div>`:`<div class="contact-row"><span class="lbl">Phone</span><span style="color:var(--ink-3)">not listed — find via Maps</span></div>`}
+        ${l.web?`<div class="contact-row"><span class="lbl">Current ${l.wc==="social"?"page":"site"}</span><a href="${l.web}" target="_blank" rel="noopener">open \u2197</a></div>`:`<div class="contact-row"><span class="lbl">Current site</span><span style="color:var(--a);font-weight:600">none — the opening</span></div>`}
+        <div class="contact-row"><span class="lbl">Google Maps</span><a href="https://www.google.com/maps/search/?api=1&query=${mapsQ}" target="_blank" rel="noopener">view listing \u2197</a></div>
+      </div>
+      <div class="dr-sec">
+        <h4>Outreach opener (editable starting point)</h4>
+        <div class="pitch" contenteditable="true" id="pitchBox">${draftPitch(l)}</div>
+        <div class="dr-actions">
+          <button class="btn ghost" id="copyPitch">Copy opener</button>
+          <a class="btn primary" href="https://www.google.com/maps/search/?api=1&query=${mapsQ}" target="_blank" rel="noopener" style="justify-content:center">Find &amp; contact \u2197</a>
+        </div>
+        <div class="contacted-toggle ${l.done?'on':''}" id="contactedTgl"><span class="box"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span> Mark as contacted</div>
+      </div>
+    </div>`;
+  d.classList.add("open");$("scrim").classList.add("open");
+  $("drClose").onclick=closeDrawer;
+  $("copyPitch").onclick=()=>{navigator.clipboard.writeText($("pitchBox").innerText);toast("Opener copied");};
+  $("contactedTgl").onclick=()=>{
+    l.done=!l.done;contacted[l.key]=l.done;
+    try{localStorage.setItem("signal_contacted",JSON.stringify(contacted));}catch(e){}
+    $("contactedTgl").classList.toggle("on",l.done);renderRows();
+  };
+}
+function closeDrawer(){$("drawer").classList.remove("open");$("scrim").classList.remove("open");}
+$("scrim").onclick=closeDrawer;
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
+
+/* ============ toast ============ */
+let toastT;
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2200);}
+
+/* ============ controls ============ */
+const CATS=["coffee shop","pet store","architecture firm","bakery","med spa","barber shop","dentist","law firm","gym","salon","florist","plumber","real estate agent","tattoo studio"];
+const CITIES=["Austin, Texas","Denver, Colorado","Toronto, Ontario, Canada","Miami, Florida","Seattle, Washington","Chicago, Illinois","Vancouver, BC, Canada","Phoenix, Arizona","Nashville, Tennessee","Calgary, Alberta, Canada"];
+let selCats=new Set(["coffee shop","pet store","architecture firm","bakery","med spa"]);
+let selCities=new Set(["Austin, Texas","Denver, Colorado","Toronto, Ontario, Canada"]);
+function renderChips(){
+  $("catChips").innerHTML=CATS.map(c=>`<span class="chip ${selCats.has(c)?'on':''}" data-c="${c}">${c}</span>`).join("");
+  $("cityChips").innerHTML=CITIES.map(c=>`<span class="chip ${selCities.has(c)?'on':''}" data-city="${c}">${c.split(",")[0]}</span>`).join("");
+  $("catChips").querySelectorAll("[data-c]").forEach(el=>el.onclick=()=>{const c=el.dataset.c;selCats.has(c)?selCats.delete(c):selCats.add(c);renderChips();});
+  $("cityChips").querySelectorAll("[data-city]").forEach(el=>el.onclick=()=>{const c=el.dataset.city;selCities.has(c)?selCities.delete(c):selCities.add(c);renderChips();});
+}
+$("perCat").oninput=e=>$("perCatVal").textContent=e.target.value;
+$("gpills").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+  $("gpills").querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");
+  filter.grade=b.dataset.g;renderRows();
+});
+$("countryF").onchange=e=>{filter.country=e.target.value;renderRows();};
+$("catF").onchange=e=>{filter.cat=e.target.value;renderRows();};
+$("sortF").onchange=e=>{filter.sort=e.target.value;renderRows();};
+$("searchF").oninput=e=>{filter.q=e.target.value;renderRows();};
+document.querySelectorAll(".thead .srt").forEach(el=>el.onclick=()=>{filter.sort=el.dataset.sort;$("sortF").value=el.dataset.sort;renderRows();});
+
+/* token persist */
+try{const tk=localStorage.getItem("signal_token");if(tk)$("token").value=tk;}catch(e){}
+$("token").onchange=e=>{try{localStorage.setItem("signal_token",e.target.value);}catch(err){}};
+
+/* ============ live scan via Apify ============ */
+async function runScan(){
+  const token=$("token").value.trim();
+  if(!token){toast("Add your Apify API token first");$("token").focus();return;}
+  if(!selCats.size||!selCities.size){toast("Pick at least one category and one city");return;}
+  const btn=$("runBtn");btn.disabled=true;const orig=btn.innerHTML;btn.innerHTML='<span class="spin"></span> Scanning…';
+  const per=+$("perCat").value;
+  let all=[];let failed=0;
+  for(const city of selCities){
+    try{
+      const body={searchStringsArray:[...selCats],locationQuery:city,maxCrawledPlacesPerSearch:per,language:"en",skipClosedPlaces:true};
+      const res=await fetch(`https://api.apify.com/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,{
+        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      if(!res.ok){failed++;continue;}
+      const items=await res.json();
+      const country=/canada|ontario|alberta|british columbia|, bc|, on| qc|quebec/i.test(city)?"CA":"US";
+      const cityName=city.split(",")[0];
+      items.forEach(it=>{
+        all.push([it.title||"Unknown",it.categoryName||"—",it.website||"",it.phone||"",
+          it.totalScore??null,it.reviewsCount??null,it.claimThisBusiness?1:0,it.imagesCount??null,cityName,country]);
+      });
+    }catch(e){failed++;}
+  }
+  if(!all.length){
+    btn.disabled=false;btn.innerHTML=orig;
+    toast(failed?"Scan blocked — see note below":"No results returned");
+    if(failed){alert("The browser couldn't reach Apify (likely a CORS or token issue).\n\nFixes:\n1. Check the API token is correct.\n2. If your browser blocks it, run the same scan from your Apify console and the scheduled VPS job will feed this dashboard.\n\nToday's preloaded leads are still fully usable.");}
+    return;
+  }
+  // merge, de-dupe by name+city
+  const seen=new Set(LEADS.map(l=>l.key));
+  const fresh=buildLeads(all).filter(l=>!seen.has(l.key));
+  LEADS=[...fresh,...LEADS];
+  btn.disabled=false;btn.innerHTML=orig;
+  renderAll();
+  toast(`Added ${fresh.length} new leads · ${fresh.filter(l=>l.grade==='A').length} A-grade`);
+}
+$("runBtn").onclick=runScan;
+
+/* export */
+$("exportBtn").onclick=()=>{
+  const rows=sortLeads(LEADS.filter(passFilter));
+  const head=["Grade","Score","Business","Category","City","Country","WebsiteStatus","Reviews","Rating","Phone","CurrentURL"];
+  const csv=[head.join(",")].concat(rows.map(l=>[l.grade,l.score,`"${l.name.replace(/"/g,'""')}"`,`"${l.cat}"`,l.city,l.country,l.wc,l.reviews??"",l.rating??"",`"${l.phone||""}"`,`"${l.web||""}"`].join(","))).join("\n");
+  const blob=new Blob([csv],{type:"text/csv"});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="signal-leads-"+new Date().toISOString().slice(0,10)+".csv";a.click();
+  toast("CSV exported");
+};
+
+/* ============ boot ============ */
+renderChips();
+LEADS=buildLeads(SEED);
+renderAll();
+</script>
+</body>
+</html>
