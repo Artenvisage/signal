@@ -205,6 +205,13 @@ button,input,select{font-family:inherit}
 .soc-link.linkedin:hover{background:#0a66c2;color:#fff}
 .enrich-recheck{margin-top:10px;font-size:11.5px;color:var(--cobalt);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
 
+/* pager */
+.pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:20px 0 6px;flex-wrap:wrap}
+.pgbtn{background:transparent;border:1px solid var(--line);border-radius:8px;padding:7px 15px;font:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;transition:all .15s}
+.pgbtn:hover:not(:disabled){border-color:var(--ink-3);color:var(--ink)}
+.pgbtn:disabled{opacity:.38;cursor:default}
+.pginfo{font-size:12.5px;color:var(--ink-3);font-family:var(--m)}
+
 /* toast */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:all .3s;z-index:50}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -308,6 +315,7 @@ footer code{font-family:var(--m);font-size:11px}
       <div></div>
     </div>
     <div id="rows"></div>
+    <div id="pager" class="pager"></div>
   </div>
 
   <footer>
@@ -461,6 +469,7 @@ function scoreLead(d){
 /* ============ state ============ */
 let LEADS=[];
 let filter={grade:"all",country:"all",cat:"all",q:"",sort:"score"};
+let page=1; const PAGE_SIZE=50;
 let contacted={};
 try{contacted=JSON.parse(localStorage.getItem("signal_contacted")||"{}");}catch(e){contacted={};}
 
@@ -518,9 +527,15 @@ function webLabel(wc){
     wc==="builder"?'<span class="soc">BUILDER</span>':wc==="chain"?'<span class="chain">CHAIN</span>':'<span class="real">has site</span>';
 }
 function renderRows(){
-  const list=sortLeads(LEADS.filter(passFilter));
-  const c=$("rows");
-  if(!list.length){c.innerHTML='<div class="empty"><h3>No leads match</h3>Loosen the filters or run a new scan.</div>';return;}
+  const sig=filter.grade+"|"+filter.country+"|"+filter.cat+"|"+filter.q+"|"+filter.sort;
+  if(sig!==renderRows._sig){page=1;renderRows._sig=sig;}
+  const full=sortLeads(LEADS.filter(passFilter));
+  const c=$("rows");const pager=$("pager");
+  if(!full.length){c.innerHTML='<div class="empty"><h3>No leads match</h3>Loosen the filters or run a new scan.</div>';if(pager)pager.innerHTML="";return;}
+  const pages=Math.max(1,Math.ceil(full.length/PAGE_SIZE));
+  if(page>pages)page=pages; if(page<1)page=1;
+  const start=(page-1)*PAGE_SIZE;
+  const list=full.slice(start,start+PAGE_SIZE);
   c.innerHTML=list.map((l,i)=>{
     const idx=LEADS.indexOf(l);
     return `<div class="trow ${l.done?'done':''}" data-i="${idx}">
@@ -540,6 +555,15 @@ function renderRows(){
     </div>`;
   }).join("");
   c.querySelectorAll("[data-i]").forEach(el=>el.addEventListener("click",()=>openDrawer(+el.dataset.i)));
+  if(pager){
+    if(pages<=1){pager.innerHTML=`<span class="pginfo">${full.length} result${full.length===1?'':'s'}</span>`;}
+    else{
+      pager.innerHTML=`<button class="pgbtn" id="pgPrev"${page===1?' disabled':''}>← Prev</button><span class="pginfo">${start+1}–${Math.min(start+PAGE_SIZE,full.length)} of ${full.length}</span><button class="pgbtn" id="pgNext"${page===pages?' disabled':''}>Next →</button>`;
+      const pv=$("pgPrev"),nx=$("pgNext");
+      if(pv)pv.onclick=()=>{if(page>1){page--;renderRows();}};
+      if(nx)nx.onclick=()=>{if(page<pages){page++;renderRows();}};
+    }
+  }
 }
 function renderAll(){renderStats();renderCatFilter();renderRows();
   $("topmeta").innerHTML=`Last scan · <b>${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}</b> · <b>${LEADS.length}</b> businesses · <b>${LEADS.filter(l=>l.grade==='A').length}</b> A-leads`;
@@ -748,10 +772,41 @@ $("exportBtn").onclick=()=>{
   toast("CSV exported");
 };
 
+/* ============ live data from Supabase ============ */
+// anon key is public by design; RLS allows read-only SELECT on leads and nothing else.
+const SB_URL="https://rkgityexclxuhroduoft.supabase.co";
+const SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrZ2l0eWV4Y2x4dWhyb2R1b2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMTA1NDMsImV4cCI6MjA5NzY4NjU0M30.U7LoCkXUS9DhYM3EHN_UrQRVN_4fuB4MXqmq6IfQMdM";
+function dbRowToArr(r){
+  return [r.name, r.category||"—", r.website||"", r.phone||"",
+    r.rating==null?null:Number(r.rating), r.reviews==null?null:r.reviews,
+    !!r.unclaimed, r.images==null?null:r.images, r.city, r.country];
+}
+async function loadFromSupabase(){
+  try{
+    const cols="name,category,website,phone,rating,reviews,unclaimed,images,city,country";
+    const PAGE=1000; let from=0; let all=[];
+    while(true){
+      const res=await fetch(`${SB_URL}/rest/v1/leads?select=${cols}&order=score.desc&offset=${from}&limit=${PAGE}`,
+        {headers:{apikey:SB_ANON,Authorization:"Bearer "+SB_ANON}});
+      if(!res.ok)throw new Error("HTTP "+res.status);
+      const batch=await res.json();
+      all=all.concat(batch);
+      if(batch.length<PAGE)break;
+      from+=PAGE;
+      if(from>20000)break; // safety cap
+    }
+    if(!all.length)return;
+    LEADS=buildLeads(all.map(dbRowToArr));
+    page=1; renderAll();
+    toast(`Live · ${LEADS.length} leads from the radar`);
+  }catch(e){ console.warn("Live load failed, showing seed",e); }
+}
+
 /* ============ boot ============ */
 renderChips();
-LEADS=buildLeads(SEED);
+LEADS=buildLeads(SEED);   // instant fallback so the table is never empty
 renderAll();
+loadFromSupabase();        // then swap in the live bank
 </script>
 </body>
 </html>
