@@ -189,6 +189,9 @@ button,input,select{font-family:inherit}
 .contacted-toggle.on .box{background:var(--a);border-color:var(--a)}
 .contacted-toggle .box svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0}
 .contacted-toggle.on .box svg{opacity:1}
+.skip-btn{margin-top:12px;width:100%;background:transparent;border:1px solid var(--line);border-radius:9px;padding:10px;font:inherit;font-size:13px;color:var(--ink-3);cursor:pointer;transition:all .15s}
+.skip-btn:hover{border-color:var(--c);color:var(--c)}
+.skip-btn.on{border-color:var(--c);color:var(--c)}
 .trow.done,.mcard.done{opacity:.5}
 .enrich-box{min-height:18px}
 .enrich-load{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-2)}
@@ -288,6 +291,7 @@ footer code{font-family:var(--m);font-size:11px}
       <button data-g="A">A</button>
       <button data-g="B">B</button>
       <button data-g="C">C</button>
+      <button data-g="skipped">Skipped</button>
     </div>
     <select class="fsel" id="countryF"><option value="all">All countries</option><option value="US">United States</option><option value="CA">Canada</option></select>
     <select class="fsel" id="catF"><option value="all">All categories</option></select>
@@ -434,8 +438,10 @@ function classifyWeb(url,name){
   return"real";
 }
 // Vertical fit: does this TYPE of business convert through a website? (mirror of the scraper)
-const FIT_HIGH=["coffee","espresso","cafe","café","tea room","tea house","restaurant","diner","bistro","eatery","grill","pizz","sushi","taco","brunch","bakery","pastry","dessert","ice cream","gelato","donut","chocolat","brewery","brewpub","winery","cocktail","pet store","pet shop","pet supply","pet boutique","groomer","grooming","salon","hair","barber","nail","spa","lash","brow","wax","esthet","skin care","massage","tattoo","piercing","gym","fitness","yoga","pilates","crossfit","dance studio","martial","dentist","dental","orthodont","florist","flower shop","boutique","clothing","apparel","jewel","photograph","wedding","event venue","cater","interior design","realtor","real estate agen"];
-const FIT_LOW=["plumb","hvac","heating","air conditioning","roofing","roofer","electric","contractor","construction","handyman","auto repair","mechanic","body shop","transmission","landscap","lawn","tree service","tree care","tire shop","pest control","junk removal","moving","mover","garage door","fence","concrete","paving","asphalt","septic","well drilling","excavat","demolition","gutter","insulation","nursery"];
+// High-ticket verticals: businesses that can fund a $2-5k website and where it pays off.
+const FIT_HIGH=["med spa","medspa","medical spa","aesthetic","cosmetic","plastic surgery","plastic surgeon","dermatolog","botox","laser clinic","iv therapy","wellness center","weight loss","dental","dentist","orthodont","endodont","periodont","oral surgeon","prosthodont","implant","law firm","lawyer","attorney","legal","real estate","realtor","broker","mortgage","title company","financial","wealth","advisor","accountant","accounting","cpa","tax service","bookkeeping","insurance agency","chiropract","physical therapy","physiotherapy","sports medicine","fertility","ivf","lasik","optometr","ophthalmolog","eye care","vision center","audiolog","hearing","veterinar","vet clinic","animal hospital","custom home","home builder","design build","design-build","remodel","renovation","general contractor","architect","interior design","landscape architect","pool builder","event venue","wedding venue","banquet","country club","golf club","private school","montessori","prep school","pilates studio","yoga studio","barre studio","surgery center","orthopedic","urgent care","jeweler","jewelry","art gallery","winery","boutique hotel","funeral home","day spa","medical clinic"];
+// Low-ticket basics: rarely pay $2-5k for a site.
+const FIT_LOW=["hair salon","barber","barbershop","nail salon","nail bar","nail spa","beauty salon","pet groom","groomer","grooming","pet store","pet shop","pet supply","tropical fish","fish store","aquarium store","coffee","espresso","cafe","café","bakery","pastry","bagel","cupcake","donut","ice cream","gelato","smoothie","juice bar","food truck","taco truck","sandwich shop","deli","fast food","candy","tanning","laundr","dry clean","car wash","convenience store","corner store","dollar store","thrift","vape","smoke shop","liquor store","gas station","gift shop","lash","brow bar","nail tech"];
 function verticalFit(cat,name){
   const s=((cat||"")+" "+(name||"")).toLowerCase();
   if(FIT_HIGH.some(k=>s.includes(k)))return"high";
@@ -447,31 +453,33 @@ function scoreLead(d){
   const wc=classifyWeb(web,name);
   if(wc==="chain"){return{grade:"Skip",score:0,wc,fit:"chain",why:[{t:"Chain / franchise",k:""}],sig:["National brand with an in-house web team"]};}
   const fit=verticalFit(cat,name);
-  const gap=wc==="none"?38:wc==="social"?35:wc==="builder"?26:6;
-  const fitPts=fit==="high"?34:fit==="medium"?17:5;
+  // Grade is the ability-to-pay-$2-5k vertical. Website status sets priority + pitch
+  // type (new build vs redesign), not eligibility \u2014 a high-ticket biz with a dated
+  // site is still a redesign lead. Use Skip to drop ones that already look great.
+  const grade=fit==="high"?"A":fit==="medium"?"B":"C";
+  const tierPts=fit==="high"?45:fit==="medium"?24:8;
+  const webPts=wc==="builder"?22:wc==="none"?20:wc==="social"?20:10; // no/weak site = easier pitch, ranks higher
   const r=reviews==null?0:reviews;
-  const est=reviews==null?2:r<5?6:r<10?12:r<30?18:r<150?24:r<=600?27:r<=1500?23:17;
-  const ratePts=rating==null?2:rating>=4.5?6:rating>=4.0?3:rating>=3.0?0:-6;
-  const claimPts=unclaimed?5:0;
-  let score=Math.max(0,Math.min(100,gap+fitPts+est+ratePts+claimPts));
-  let grade=score>=70?"A":score>=52?"B":"C";
-  if(fit==="low"&&grade==="A")grade="B";   // trades are never "pitch today"
-  if(wc==="real")grade="C";                // already has a real site = low priority
+  const est=reviews==null?2:r<10?6:r<30?10:r<150?15:r<=600?18:14;
+  const ratePts=rating==null?2:rating>=4.0?3:rating>=3.0?0:-4;
+  const score=Math.max(0,Math.min(100,tierPts+webPts+est+ratePts));
   const sig=[];
-  if(wc==="none")sig.push("No website at all");
+  if(fit==="high")sig.push("High-value vertical, strong $2-5k fit");
+  else if(fit==="medium")sig.push("Mid-ticket vertical, secondary priority");
+  else sig.push("Low-ticket business, unlikely to pay $2-5k");
+  if(wc==="none")sig.push("No real website yet, easy first-build pitch");
   else if(wc==="social")sig.push("Running on a social page only");
-  else if(wc==="builder")sig.push("DIY website builder");
-  if(fit==="high")sig.push("Client-facing, a real site drives bookings and discovery");
-  else if(fit==="low")sig.push("Trades / referral-driven, lower website urgency");
+  else if(wc==="builder")sig.push("Weak DIY / builder site, prime upgrade target");
+  else sig.push("Has a site, pitch a redesign or refresh");
+  if(reviews!=null&&reviews>=40)sig.push(reviews+" reviews, established and able to pay");
   if(unclaimed)sig.push("Google listing still unclaimed");
-  if(reviews!=null&&reviews>=50)sig.push(reviews+" reviews, established and able to pay");
   const why=[];
+  if(fit==="high")why.push({t:"$2-5k fit",k:"soc"});
+  else if(fit==="low")why.push({t:"Low ticket",k:""});
   if(wc==="none")why.push({t:"No website",k:"no"});
   else if(wc==="social")why.push({t:"Social only",k:"soc"});
-  else if(wc==="builder")why.push({t:"Builder site",k:""});
-  if(fit==="high")why.push({t:"Client-facing",k:"soc"});
-  else if(fit==="low")why.push({t:"Trades",k:""});
-  if(unclaimed)why.push({t:"Unclaimed",k:""});
+  else if(wc==="builder")why.push({t:"Weak site",k:"no"});
+  else why.push({t:"Redesign",k:""});
   if(reviews!=null)why.push({t:reviews+" reviews",k:""});
   if(rating!=null)why.push({t:rating+"\u2605",k:""});
   return{grade,score,wc,fit,why,sig};
@@ -483,12 +491,14 @@ let filter={grade:"all",country:"all",cat:"all",q:"",sort:"score"};
 let page=1; const PAGE_SIZE=50;
 let contacted={};
 try{contacted=JSON.parse(localStorage.getItem("signal_contacted")||"{}");}catch(e){contacted={};}
+let skipped={};
+try{skipped=JSON.parse(localStorage.getItem("signal_skipped")||"{}");}catch(e){skipped={};}
 
 function rowKey(d){return (d[0]+"|"+d[8]).toLowerCase();}
 function buildLeads(raw){
   return raw.map(d=>{const s=scoreLead(d);return{
     name:d[0],cat:d[1],web:d[2],phone:d[3],rating:d[4],reviews:d[5],unclaimed:d[6],images:d[7],city:d[8],country:d[9],
-    ...s,key:rowKey(d),done:!!contacted[rowKey(d)]
+    ...s,key:rowKey(d),done:!!contacted[rowKey(d)],skip:!!skipped[rowKey(d)]
   };});
 }
 
@@ -517,6 +527,8 @@ function renderCatFilter(){
   sel.value=cur&&[...sel.options].some(o=>o.value===cur)?cur:"all";
 }
 function passFilter(l){
+  if(filter.grade==="skipped")return !!l.skip;   // Skipped view: only skipped leads
+  if(l.skip)return false;                         // every other view hides skipped leads
   if(filter.grade!=="all"&&l.grade!==filter.grade)return false;
   if(filter.country!=="all"&&l.country!==filter.country)return false;
   if(filter.cat!=="all"&&l.cat!==filter.cat)return false;
@@ -625,11 +637,19 @@ function openDrawer(i){
           <a class="btn primary" href="https://www.google.com/maps/search/?api=1&query=${mapsQ}" target="_blank" rel="noopener" style="justify-content:center">Find &amp; contact \u2197</a>
         </div>
         <div class="contacted-toggle ${l.done?'on':''}" id="contactedTgl"><span class="box"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span> Mark as contacted</div>
+        <button class="skip-btn ${l.skip?'on':''}" id="skipBtn">${l.skip?"Skipped · restore to list":"Skip this lead"}</button>
       </div>
     </div>`;
   d.classList.add("open");$("scrim").classList.add("open");
   $("drClose").onclick=closeDrawer;
   $("copyPitch").onclick=()=>{navigator.clipboard.writeText($("pitchBox").innerText);toast("Opener copied");};
+  $("skipBtn").onclick=()=>{
+    l.skip=!l.skip;
+    if(l.skip)skipped[l.key]=true; else delete skipped[l.key];
+    try{localStorage.setItem("signal_skipped",JSON.stringify(skipped));}catch(e){}
+    toast(l.skip?"Lead skipped":"Lead restored");
+    closeDrawer();renderAll();
+  };
   $("contactedTgl").onclick=()=>{
     l.done=!l.done;contacted[l.key]=l.done;
     try{localStorage.setItem("signal_contacted",JSON.stringify(contacted));}catch(e){}
@@ -785,43 +805,10 @@ $("exportBtn").onclick=()=>{
   toast("CSV exported");
 };
 
-/* ============ live data from Supabase ============ */
-// anon key is public by design; RLS allows read-only SELECT on leads and nothing else.
-const SB_URL="https://rkgityexclxuhroduoft.supabase.co";
-const SB_ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJrZ2l0eWV4Y2x4dWhyb2R1b2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxMTA1NDMsImV4cCI6MjA5NzY4NjU0M30.U7LoCkXUS9DhYM3EHN_UrQRVN_4fuB4MXqmq6IfQMdM";
-function dbRowToArr(r){
-  return [r.name, r.category||"—", r.website||"", r.phone||"",
-    r.rating==null?null:Number(r.rating), r.reviews==null?null:r.reviews,
-    !!r.unclaimed, r.images==null?null:r.images, r.city, r.country];
-}
-async function loadFromSupabase(){
-  try{
-    const cols="name,category,website,phone,rating,reviews,unclaimed,images,city,country,emails,socials,enriched_at";
-    const PAGE=1000; let from=0; let all=[];
-    while(true){
-      const res=await fetch(`${SB_URL}/rest/v1/leads?select=${cols}&order=score.desc&offset=${from}&limit=${PAGE}`,
-        {headers:{apikey:SB_ANON,Authorization:"Bearer "+SB_ANON}});
-      if(!res.ok)throw new Error("HTTP "+res.status);
-      const batch=await res.json();
-      all=all.concat(batch);
-      if(batch.length<PAGE)break;
-      from+=PAGE;
-      if(from>20000)break; // safety cap
-    }
-    if(!all.length)return;
-    LEADS=buildLeads(all.map(dbRowToArr)).map((l,i)=>({
-      ...l, emails:all[i].emails||[], socials:all[i].socials||null, enriched:all[i].enriched_at!=null
-    }));
-    page=1; renderAll();
-    toast(`Live · ${LEADS.length} leads from the radar`);
-  }catch(e){ console.warn("Live load failed, showing seed",e); }
-}
-
 /* ============ boot ============ */
 renderChips();
-LEADS=buildLeads(SEED);   // instant fallback so the table is never empty
+LEADS=buildLeads(SEED);   // curated lead set (single source of truth)
 renderAll();
-loadFromSupabase();        // then swap in the live bank
 </script>
 </body>
 </html>
