@@ -190,6 +190,20 @@ button,input,select{font-family:inherit}
 .contacted-toggle .box svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:3;opacity:0}
 .contacted-toggle.on .box svg{opacity:1}
 .trow.done,.mcard.done{opacity:.5}
+.enrich-box{min-height:18px}
+.enrich-load{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-2)}
+.spin.dark{border:2px solid rgba(19,22,27,.18);border-top-color:var(--cobalt)}
+.enrich-hint{font-size:12.5px;color:var(--ink-3);line-height:1.55;margin-bottom:10px}
+.email-list{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.email-chip{display:flex;align-items:center;gap:8px;background:var(--cobalt-soft);color:var(--cobalt);border:1px solid #d4dbff;border-radius:8px;padding:10px 12px;font-family:var(--m);font-size:12.5px;text-decoration:none;word-break:break-all;font-weight:500;transition:all .15s}
+.email-chip:hover{background:var(--cobalt);color:#fff;border-color:var(--cobalt)}
+.email-chip svg{width:13px;height:13px;flex:none;stroke:currentColor;fill:none;stroke-width:2}
+.enrich-socials{display:flex;flex-wrap:wrap;gap:7px}
+.soc-link{font-size:11.5px;font-family:var(--m);text-decoration:none;border:1px solid var(--line);border-radius:7px;padding:6px 11px;color:var(--ink-2);transition:all .15s}
+.soc-link:hover{border-color:var(--ink-3);color:var(--ink)}
+.soc-link.linkedin{color:#0a66c2;border-color:#cfe0f3;background:#eaf2fb}
+.soc-link.linkedin:hover{background:#0a66c2;color:#fff}
+.enrich-recheck{margin-top:10px;font-size:11.5px;color:var(--cobalt);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
 
 /* toast */
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:all .3s;z-index:50}
@@ -559,9 +573,13 @@ function openDrawer(i){
         </div>
       </div>
       <div class="dr-sec">
+        <h4>Emails &amp; socials</h4>
+        <div id="enrichBox" class="enrich-box"></div>
+      </div>
+      <div class="dr-sec">
         <h4>Contact</h4>
-        ${l.phone?`<div class="contact-row"><span class="lbl">Phone</span><a href="tel:${l.phone.replace(/[^0-9+]/g,'')}">${l.phone}</a></div>`:`<div class="contact-row"><span class="lbl">Phone</span><span style="color:var(--ink-3)">not listed — find via Maps</span></div>`}
-        ${l.web?`<div class="contact-row"><span class="lbl">Current ${l.wc==="social"?"page":"site"}</span><a href="${l.web}" target="_blank" rel="noopener">open \u2197</a></div>`:`<div class="contact-row"><span class="lbl">Current site</span><span style="color:var(--a);font-weight:600">none — the opening</span></div>`}
+        ${l.phone?`<div class="contact-row"><span class="lbl">Phone</span><a href="tel:${l.phone.replace(/[^0-9+]/g,'')}">${l.phone}</a></div>`:`<div class="contact-row"><span class="lbl">Phone</span><span style="color:var(--ink-3)">not listed, find via Maps</span></div>`}
+        ${l.web?`<div class="contact-row"><span class="lbl">Current ${l.wc==="social"?"page":"site"}</span><a href="${l.web}" target="_blank" rel="noopener">open \u2197</a></div>`:`<div class="contact-row"><span class="lbl">Current site</span><span style="color:var(--a);font-weight:600">none, your opening</span></div>`}
         <div class="contact-row"><span class="lbl">Google Maps</span><a href="https://www.google.com/maps/search/?api=1&query=${mapsQ}" target="_blank" rel="noopener">view listing \u2197</a></div>
       </div>
       <div class="dr-sec">
@@ -582,6 +600,70 @@ function openDrawer(i){
     try{localStorage.setItem("signal_contacted",JSON.stringify(contacted));}catch(e){}
     $("contactedTgl").classList.toggle("on",l.done);renderRows();
   };
+  enrichLead(l);
+}
+
+/* ============ auto-enrich: emails + socials ============ */
+const ENRICH_ACTOR="jurassic_jove~website-email-extractor";
+let enrichCache={};
+try{enrichCache=JSON.parse(localStorage.getItem("signal_enrich")||"{}");}catch(e){enrichCache={};}
+function socialsHTML(s){
+  if(!s)return"";
+  const order=["linkedin","facebook","instagram","twitter"];
+  const items=order.filter(k=>s[k]).map(k=>`<a class="soc-link ${k}" href="${s[k]}" target="_blank" rel="noopener">${k[0].toUpperCase()+k.slice(1)} \u2197</a>`);
+  return items.length?'<div class="enrich-socials">'+items.join("")+'</div>':"";
+}
+function renderEnrich(l,data){
+  const box=document.getElementById("enrichBox");
+  if(!box)return;
+  const st=data.status;
+  if(st==="loading"){box.innerHTML='<div class="enrich-load"><span class="spin dark"></span> Scanning the site for emails…</div>';return;}
+  if(st==="notoken"){box.innerHTML='<div class="enrich-hint">Paste your Apify token at the top and reopen this lead to auto-find its emails.</div>';return;}
+  if(st==="nosite"){
+    const q=encodeURIComponent(l.name+" "+l.city);
+    box.innerHTML=`<div class="enrich-hint">No website to read, so no email is sitting online. Reach this one direct:</div>
+      <div class="enrich-socials">
+        <a class="soc-link facebook" href="https://www.facebook.com/search/top?q=${q}" target="_blank" rel="noopener">Find on Facebook \u2197</a>
+        <a class="soc-link instagram" href="https://www.google.com/search?q=${q}+instagram" target="_blank" rel="noopener">Find on Instagram \u2197</a>
+        <a class="soc-link" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps listing \u2197</a>
+      </div>`;
+    return;
+  }
+  if(st==="error"){box.innerHTML='<div class="enrich-hint">Browser blocked the lookup. '+(l.web?'<a href="'+l.web+'" target="_blank" rel="noopener">Open the site \u2197</a> and grab the email manually.':'')+'</div>'+socialsHTML(data.socials);return;}
+  // done or empty
+  let html="";
+  if(data.emails&&data.emails.length){
+    html+='<div class="email-list">'+data.emails.map(e=>`<a class="email-chip" href="mailto:${e}"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>${e}</a>`).join("")+'</div>';
+  } else {
+    html+='<div class="enrich-hint">No email found on the site. Try the socials or its contact page.</div>';
+  }
+  html+=socialsHTML(data.socials);
+  html+='<button class="enrich-recheck" id="recheckBtn">Re-scan</button>';
+  box.innerHTML=html;
+  const rb=document.getElementById("recheckBtn");
+  if(rb)rb.onclick=()=>{delete enrichCache[l.key];try{localStorage.setItem("signal_enrich",JSON.stringify(enrichCache));}catch(e){}enrichLead(l,true);};
+}
+async function enrichLead(l,force){
+  if(!l.web||l.wc==="chain"){renderEnrich(l,{status:"nosite"});return;}
+  if(!force&&enrichCache[l.key]){renderEnrich(l,enrichCache[l.key]);return;}
+  const token=($("token").value||"").trim();
+  if(!token){renderEnrich(l,{status:"notoken"});return;}
+  renderEnrich(l,{status:"loading"});
+  try{
+    const res=await fetch(`https://api.apify.com/v2/acts/${ENRICH_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({urls:[l.web],scrapeEmails:true,scrapePhones:false,scrapeSocials:true,followLinkPages:true})
+    });
+    if(!res.ok){renderEnrich(l,{status:"error"});return;}
+    const items=await res.json();
+    const it=(items&&items[0])||{};
+    const emails=[...new Set((it.emails||[]).filter(e=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)))];
+    const socials=it.socialLinks||{};
+    const data={status:"done",emails,socials};
+    enrichCache[l.key]=data;
+    try{localStorage.setItem("signal_enrich",JSON.stringify(enrichCache));}catch(e){}
+    renderEnrich(l,data);
+  }catch(e){renderEnrich(l,{status:"error"});}
 }
 function closeDrawer(){$("drawer").classList.remove("open");$("scrim").classList.remove("open");}
 $("scrim").onclick=closeDrawer;
