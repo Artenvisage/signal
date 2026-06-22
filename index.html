@@ -645,10 +645,11 @@ function renderEnrich(l,data){
   if(st==="notoken"){box.innerHTML='<div class="enrich-hint">Paste your Apify token at the top and reopen this lead to auto-find its emails.</div>';return;}
   if(st==="nosite"){
     const q=encodeURIComponent(l.name+" "+l.city);
-    box.innerHTML=`<div class="enrich-hint">No website to read, so no email is sitting online. Reach this one direct:</div>
+    box.innerHTML=`<div class="enrich-hint">No website, so no email is sitting online. Copy the opener below and DM them direct:</div>
       <div class="enrich-socials">
-        <a class="soc-link facebook" href="https://www.facebook.com/search/top?q=${q}" target="_blank" rel="noopener">Find on Facebook \u2197</a>
         <a class="soc-link instagram" href="https://www.google.com/search?q=${q}+instagram" target="_blank" rel="noopener">Find on Instagram \u2197</a>
+        <a class="soc-link facebook" href="https://www.facebook.com/search/top?q=${q}" target="_blank" rel="noopener">Find on Facebook \u2197</a>
+        <a class="soc-link linkedin" href="https://www.google.com/search?q=${q}+linkedin" target="_blank" rel="noopener">Find on LinkedIn \u2197</a>
         <a class="soc-link" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Maps listing \u2197</a>
       </div>`;
     return;
@@ -669,6 +670,7 @@ function renderEnrich(l,data){
 }
 async function enrichLead(l,force){
   if(!l.web||l.wc==="chain"){renderEnrich(l,{status:"nosite"});return;}
+  if(!force&&l.enriched){renderEnrich(l,{status:"done",emails:l.emails||[],socials:l.socials||{}});return;}
   if(!force&&enrichCache[l.key]){renderEnrich(l,enrichCache[l.key]);return;}
   const token=($("token").value||"").trim();
   if(!token){renderEnrich(l,{status:"notoken"});return;}
@@ -783,7 +785,7 @@ function dbRowToArr(r){
 }
 async function loadFromSupabase(){
   try{
-    const cols="name,category,website,phone,rating,reviews,unclaimed,images,city,country";
+    const cols="name,category,website,phone,rating,reviews,unclaimed,images,city,country,emails,socials,enriched_at";
     const PAGE=1000; let from=0; let all=[];
     while(true){
       const res=await fetch(`${SB_URL}/rest/v1/leads?select=${cols}&order=score.desc&offset=${from}&limit=${PAGE}`,
@@ -796,7 +798,9 @@ async function loadFromSupabase(){
       if(from>20000)break; // safety cap
     }
     if(!all.length)return;
-    LEADS=buildLeads(all.map(dbRowToArr));
+    LEADS=buildLeads(all.map(dbRowToArr)).map((l,i)=>({
+      ...l, emails:all[i].emails||[], socials:all[i].socials||null, enriched:all[i].enriched_at!=null
+    }));
     page=1; renderAll();
     toast(`Live · ${LEADS.length} leads from the radar`);
   }catch(e){ console.warn("Live load failed, showing seed",e); }
