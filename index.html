@@ -420,50 +420,61 @@ const SEED = [
 
 /* ============ scoring engine ============ */
 const CHAIN_NAMES=["starbucks","petsmart","pet supplies plus","pet valu","chuck & don","dunkin","subway","mcdonald"];
+const SOCIAL_HOSTS=["facebook.","instagram.","linktr.","linktree","tiktok.","fb.com"];
+const BUILDER_HOSTS=["wixsite.","business.site","godaddysites","weebly.","mystrikingly","square.site","wordpress.com","blogspot",".wix.com"];
+const CHAIN_URL=["/store/","/stores/","/location/","/locations/","stores.","locations.","store.petvalu","petsuppliesplus","petsmart.","starbucks.com","summermoon"];
 function classifyWeb(url,name){
   if(!url||!url.trim())return"none";
   const u=url.toLowerCase();
-  if(/facebook\.|instagram\.|linktr\.|linktree|tiktok\.|fb\.com/.test(u))return"social";
-  if(/wixsite\.|business\.site|godaddysites|weebly\.|mystrikingly|square\.site|wordpress\.com|blogspot|\.wix\.com/.test(u))return"builder";
-  if(/\/store\/|\/stores\/|\/locations?\/|stores\.|locations\.|store\.petvalu|petsuppliesplus|petsmart\.|starbucks\.com|summermoon/.test(u))return"chain";
+  if(SOCIAL_HOSTS.some(h=>u.includes(h)))return"social";
+  if(BUILDER_HOSTS.some(h=>u.includes(h)))return"builder";
+  if(CHAIN_URL.some(h=>u.includes(h)))return"chain";
   const n=(name||"").toLowerCase();
   if(CHAIN_NAMES.some(c=>n.includes(c)))return"chain";
   return"real";
 }
+// Vertical fit: does this TYPE of business convert through a website? (mirror of the scraper)
+const FIT_HIGH=["coffee","espresso","cafe","café","tea room","tea house","restaurant","diner","bistro","eatery","grill","pizz","sushi","taco","brunch","bakery","pastry","dessert","ice cream","gelato","donut","chocolat","brewery","brewpub","winery","cocktail","pet store","pet shop","pet supply","pet boutique","groomer","grooming","salon","hair","barber","nail","spa","lash","brow","wax","esthet","skin care","massage","tattoo","piercing","gym","fitness","yoga","pilates","crossfit","dance studio","martial","dentist","dental","orthodont","florist","flower shop","boutique","clothing","apparel","jewel","photograph","wedding","event venue","cater","interior design","realtor","real estate agen"];
+const FIT_LOW=["plumb","hvac","heating","air conditioning","roofing","roofer","electric","contractor","construction","handyman","auto repair","mechanic","body shop","transmission","landscap","lawn","tree service","tree care","tire shop","pest control","junk removal","moving","mover","garage door","fence","concrete","paving","asphalt","septic","well drilling","excavat","demolition","gutter","insulation","nursery"];
+function verticalFit(cat,name){
+  const s=((cat||"")+" "+(name||"")).toLowerCase();
+  if(FIT_HIGH.some(k=>s.includes(k)))return"high";
+  if(FIT_LOW.some(k=>s.includes(k)))return"low";
+  return"medium";
+}
 function scoreLead(d){
   const [name,cat,web,phone,rating,reviews,unclaimed,images]=d;
   const wc=classifyWeb(web,name);
-  let score=0; const sig=[];
-  if(wc==="chain"){return{grade:"Skip",score:0,wc,why:[{t:"Chain / franchise",k:""}],sig:["National brand with an in-house web team"]};}
-  if(wc==="none"){score+=50;sig.push("No website at all");}
-  else if(wc==="social"){score+=45;sig.push("Running on a social page only");}
-  else if(wc==="builder"){score+=30;sig.push("DIY website builder");}
-  else {score+=5;}
-  if(unclaimed){score+=15;sig.push("Google listing still unclaimed");}
+  if(wc==="chain"){return{grade:"Skip",score:0,wc,fit:"chain",why:[{t:"Chain / franchise",k:""}],sig:["National brand with an in-house web team"]};}
+  const fit=verticalFit(cat,name);
+  const gap=wc==="none"?38:wc==="social"?35:wc==="builder"?26:6;
+  const fitPts=fit==="high"?34:fit==="medium"?17:5;
   const r=reviews==null?0:reviews;
-  if(reviews==null)score+=4;
-  else if(r<5)score+=6;
-  else if(r<=49)score+=18;
-  else if(r<=300)score+=16;
-  else if(r<=1200)score+=10;
-  else score+=4;
-  if(rating==null)score+=4;
-  else if(rating>=4.5)score+=10;
-  else if(rating>=4.0)score+=6;
-  else score+=3;
-  if(images!=null&&images<5)score+=5;
-  if(phone&&phone.trim())score+=3;
-  if(reviews!=null&&reviews>=50&&(wc==="none"||wc==="social"))sig.push("Established business, real revenue, no real site");
-  let grade= score>=66?"A":score>=48?"B":"C";
-  // why tags
+  const est=reviews==null?2:r<5?6:r<10?12:r<30?18:r<150?24:r<=600?27:r<=1500?23:17;
+  const ratePts=rating==null?2:rating>=4.5?6:rating>=4.0?3:rating>=3.0?0:-6;
+  const claimPts=unclaimed?5:0;
+  let score=Math.max(0,Math.min(100,gap+fitPts+est+ratePts+claimPts));
+  let grade=score>=70?"A":score>=52?"B":"C";
+  if(fit==="low"&&grade==="A")grade="B";   // trades are never "pitch today"
+  if(wc==="real")grade="C";                // already has a real site = low priority
+  const sig=[];
+  if(wc==="none")sig.push("No website at all");
+  else if(wc==="social")sig.push("Running on a social page only");
+  else if(wc==="builder")sig.push("DIY website builder");
+  if(fit==="high")sig.push("Client-facing, a real site drives bookings and discovery");
+  else if(fit==="low")sig.push("Trades / referral-driven, lower website urgency");
+  if(unclaimed)sig.push("Google listing still unclaimed");
+  if(reviews!=null&&reviews>=50)sig.push(reviews+" reviews, established and able to pay");
   const why=[];
   if(wc==="none")why.push({t:"No website",k:"no"});
   else if(wc==="social")why.push({t:"Social only",k:"soc"});
   else if(wc==="builder")why.push({t:"Builder site",k:""});
+  if(fit==="high")why.push({t:"Client-facing",k:"soc"});
+  else if(fit==="low")why.push({t:"Trades",k:""});
   if(unclaimed)why.push({t:"Unclaimed",k:""});
   if(reviews!=null)why.push({t:reviews+" reviews",k:""});
   if(rating!=null)why.push({t:rating+"\u2605",k:""});
-  return{grade,score,wc,why,sig};
+  return{grade,score,wc,fit,why,sig};
 }
 
 /* ============ state ============ */
